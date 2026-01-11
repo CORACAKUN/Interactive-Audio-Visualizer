@@ -99,6 +99,36 @@ Special care is taken to correctly map frequency bins to visual elements, ensuri
 Themes are defined using CSS variables:
 ```css
 .theme-neon { --bg:#050505; --fg:#00ff99; --accent:#00ffaa; }
-
 ```
+Adjust Sensitivity
 
+Modify the sensitivity multiplier in JavaScript:
+
+```html getAudioValue(i, count) * sensSlider.value ```
+
+##Add New Visualizers
+
+Create a new draw function and add it to the switch statement in the animation loop.
+
+---
+##Mic Permission
+
+Microphone access requires HTTPS or localhost in some browsers.
+
+---
+
+##Learning Purpose
+
+###This project demonstrates:
+
+-Real-time audio processing with Web Audio API
+-Canvas-based rendering techniques
+-Frequency and waveform visualization
+-UI controls without external libraries
+-Performance-friendly animation loops
+
+---
+
+##License
+
+This project is open-source and free to use for educational and personal projects.
