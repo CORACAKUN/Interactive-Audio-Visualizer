@@ -1,0 +1,311 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<title>Mic Audio Visualizer Ultimate (Fixed)</title>
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+
+<style>
+:root {
+  --bg:#050505;
+  --fg:#00ff99;
+  --accent:#00ffaa;
+}
+
+body {
+  margin:0;
+  background:var(--bg);
+  color:var(--fg);
+  font-family:Arial, Helvetica, sans-serif;
+  overflow:hidden;
+}
+
+/* CONTROL PANEL */
+#panel {
+  position:fixed;
+  top:10px;
+  left:50%;
+  transform:translateX(-50%);
+  background:rgba(0,0,0,.65);
+  backdrop-filter:blur(10px);
+  padding:10px;
+  border-radius:14px;
+  display:flex;
+  flex-wrap:wrap;
+  gap:8px;
+  align-items:center;
+  box-shadow:0 0 20px rgba(0,255,153,.3);
+  z-index:10;
+}
+
+button, select, input[type=range] {
+  background:transparent;
+  border:1px solid var(--accent);
+  color:var(--fg);
+  padding:6px 10px;
+  border-radius:8px;
+  font-size:13px;
+}
+
+button:hover, select:hover {
+  background:var(--accent);
+  color:#000;
+}
+
+label { font-size:12px; }
+
+.theme-neon { --bg:#050505; --fg:#00ff99; --accent:#00ffaa; }
+.theme-ocean{ --bg:#020b14; --fg:#3ad5ff; --accent:#3ad5ff; }
+.theme-fire { --bg:#140000; --fg:#ff6a00; --accent:#ff2a00; }
+.theme-dark { --bg:#111; --fg:#ddd; --accent:#888; }
+
+canvas { display:block; }
+</style>
+</head>
+
+<body class="theme-neon">
+
+<div id="panel">
+  <button id="startBtn">🎤 Start</button>
+
+  <select id="mode">
+    <option value="bars">Bars</option>
+    <option value="wave">Wave</option>
+    <option value="circle">Circle</option>
+    <option value="mirror">Mirror Bars</option>
+    <option value="pulse">Radial Pulse</option>
+    <option value="spiral">Spiral</option>
+    <option value="dots">Dot Field</option>
+    <option value="ring">Energy Ring</option>
+  </select>
+
+  <select id="theme">
+    <option value="theme-neon">Neon</option>
+    <option value="theme-ocean">Ocean</option>
+    <option value="theme-fire">Fire</option>
+    <option value="theme-dark">Dark</option>
+  </select>
+
+  <select id="colorMode">
+    <option value="solid">Solid</option>
+    <option value="rainbow">Rainbow</option>
+  </select>
+
+  <label>Sensitivity</label>
+  <input type="range" id="sensitivity" min="0.5" max="3" step="0.1" value="1.5">
+
+  <label>
+    <input type="checkbox" id="bassOnly"> Bass Only
+  </label>
+
+  <button id="fsBtn">⛶ Fullscreen</button>
+</div>
+
+<canvas id="canvas"></canvas>
+
+<script>
+//  SETUP
+const canvas = document.getElementById("canvas");
+const ctx = canvas.getContext("2d");
+
+function resize() {
+  canvas.width = innerWidth;
+  canvas.height = innerHeight;
+}
+resize();
+window.onresize = resize;
+
+const startBtn = document.getElementById("startBtn");
+const modeSel = document.getElementById("mode");
+const themeSel = document.getElementById("theme");
+const colorSel = document.getElementById("colorMode");
+const sensSlider = document.getElementById("sensitivity");
+const bassChk = document.getElementById("bassOnly");
+const fsBtn = document.getElementById("fsBtn");
+
+themeSel.onchange = () => document.body.className = themeSel.value;
+
+let audioCtx, analyser, dataArray, bufferLength;
+let hue = 0;
+
+// AUDIO START 
+startBtn.onclick = async () => {
+  startBtn.disabled = true;
+
+  audioCtx = new (window.AudioContext || window.webkitAudioContext)();
+  const stream = await navigator.mediaDevices.getUserMedia({ audio:true });
+  const src = audioCtx.createMediaStreamSource(stream);
+
+  analyser = audioCtx.createAnalyser();
+  analyser.fftSize = 512;
+
+  bufferLength = analyser.frequencyBinCount;
+  dataArray = new Uint8Array(bufferLength);
+
+  src.connect(analyser);
+  animate();
+};
+
+fsBtn.onclick = () => {
+  document.fullscreenElement ? document.exitFullscreen() : canvas.requestFullscreen();
+};
+
+COLOR 
+function getColor(index, total) {
+  if (colorSel.value === "rainbow") {
+    const hueVal = (hue + (index / total) * 360) % 360;
+    return `hsl(${hueVal},100%,60%)`;
+  }
+  return getComputedStyle(document.body).getPropertyValue("--accent");
+}
+
+//  CORE FIX: AUDIO MAPPING
+function getAudioValue(visualIndex, visualCount) {
+  if (!bassChk.checked) {
+    const mapped = Math.floor((visualIndex / visualCount) * bufferLength);
+    return dataArray[Math.min(mapped, bufferLength - 1)];
+  }
+
+  const bassRange = Math.floor(bufferLength * 0.25);
+  const mapped = Math.floor((visualIndex / visualCount) * bassRange);
+  return dataArray[Math.min(mapped, bassRange - 1)];
+}
+
+// DRAW LOOP
+function animate() {
+  requestAnimationFrame(animate);
+  analyser.getByteFrequencyData(dataArray);
+  hue = (hue + 1) % 360;
+
+  ctx.fillStyle = "rgba(0,0,0,0.25)";
+  ctx.fillRect(0,0,canvas.width,canvas.height);
+
+  switch (modeSel.value) {
+    case "bars": drawBars(); break;
+    case "wave": drawWave(); break;
+    case "circle": drawCircle(); break;
+    case "mirror": drawMirror(); break;
+    case "pulse": drawPulse(); break;
+    case "spiral": drawSpiral(); break;
+    case "dots": drawDots(); break;
+    case "ring": drawRing(); break;
+  }
+}
+
+//  VISUALIZERS
+
+function drawBars() {
+  const bars = 228;
+  const w = canvas.width / bars * 6;
+  for (let i = 0; i < bars; i++) {
+    const v = getAudioValue(i, bars) * sensSlider.value;
+    ctx.fillStyle = getColor(i, bars);
+    ctx.fillRect(i * w, canvas.height - v, w - 1, v);
+  }
+}
+
+function drawWave() {
+  analyser.getByteTimeDomainData(dataArray);
+  ctx.strokeStyle = getColor(0, 1);
+  ctx.lineWidth = 2;
+  ctx.beginPath();
+  for (let i = 0; i < bufferLength; i++) {
+    const x = (i / bufferLength) * canvas.width;
+    const y = (dataArray[i] / 255) * canvas.height;
+    i === 0 ? ctx.moveTo(x, y) : ctx.lineTo(x, y);
+  }
+  ctx.stroke();
+}
+
+function drawCircle() {
+  const bins = 251;
+  const cx = canvas.width / 2, cy = canvas.height / 2;
+  const base = Math.min(canvas.width, canvas.height) * 0.15;
+  
+  ctx.beginPath();
+  for (let i = 0; i < bins; i++) {
+    const v = getAudioValue(i, bins) * sensSlider.value * 0.8;
+    const a = (i / bins) * Math.PI * 2;
+    const r = base + v;
+    const x = cx + Math.cos(a) * r;
+    const y = cy + Math.sin(a) * r;
+    i === 0 ? ctx.moveTo(x, y) : ctx.lineTo(x, y);
+  }
+  ctx.closePath();
+  ctx.strokeStyle = getColor(0, 1);
+  ctx.lineWidth = 2;
+  ctx.stroke();
+}
+
+function drawMirror() {
+  const bars = 1524;
+  const w = canvas.width / bars * 10;
+  const mid = canvas.height / 2;
+  for (let i = 0; i < bars; i++) {
+    const v = getAudioValue(i, bars) * sensSlider.value;
+    ctx.fillStyle = getColor(i, bars);
+    ctx.fillRect(i * w, mid - v / 2, w - 1, v);
+  }
+}
+
+function drawPulse() {
+  const avg = dataArray.reduce((a, b) => a + b) / bufferLength;
+  const radius = 80 + avg * sensSlider.value;
+  ctx.strokeStyle = getColor(0, 1);
+  ctx.lineWidth = 6;
+  ctx.beginPath();
+  ctx.arc(canvas.width / 2, canvas.height / 2, radius, 0, Math.PI * 2);
+  ctx.stroke();
+}
+
+function drawSpiral() {
+  const cx = canvas.width / 2, cy = canvas.height / 2;
+  const samples = 256;
+  ctx.strokeStyle = getColor(0, 1);
+  ctx.beginPath();
+  for (let i = 0; i < samples; i++) {
+    const v = getAudioValue(i, samples) * sensSlider.value * 0.5;
+    const a = i * 0.25;
+    const r = 40 + v;
+    ctx.lineTo(cx + Math.cos(a) * r, cy + Math.sin(a) * r);
+  }
+  ctx.lineWidth = 2;
+  ctx.stroke();
+}
+
+function drawDots() {
+  const cols = 40, rows = 22;
+  const cw = canvas.width / cols, ch = canvas.height / rows;
+  let idx = 0;
+  for (let y = 0; y < rows; y++) {
+    for (let x = 0; x < cols; x++) {
+      const v = getAudioValue(idx, cols * rows) * sensSlider.value;
+      ctx.fillStyle = getColor(idx, cols * rows);
+      ctx.beginPath();
+      ctx.arc(x * cw + cw / 2, y * ch + ch / 2, Math.max(2, v / 12), 0, Math.PI * 2);
+      ctx.fill();
+      idx++;
+    }
+  }
+}
+
+function drawRing() {
+  const bins = 256;
+  const cx = canvas.width / 2, cy = canvas.height / 2;
+  const baseRadius = Math.min(canvas.width, canvas.height) * 0.2;
+  
+  ctx.strokeStyle = getColor(0, 1);
+  for (let i = 0; i < bins; i++) {
+    const v = getAudioValue(i, bins) * sensSlider.value * 0.6;
+    const a = (i / bins) * Math.PI * 2;
+    ctx.lineWidth = 2;
+    ctx.beginPath();
+    ctx.moveTo(cx + Math.cos(a) * baseRadius, cy + Math.sin(a) * baseRadius);
+    ctx.lineTo(cx + Math.cos(a) * (baseRadius + v), cy + Math.sin(a) * (baseRadius + v));
+    ctx.stroke();
+  }
+}
+</script>
+
+</body>
+</html>
