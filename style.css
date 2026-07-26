@@ -1,0 +1,54 @@
+:root {
+  --bg:#050505;
+  --fg:#00ff99;
+  --accent:#00ffaa;
+}
+
+body {
+  margin:0;
+  background:var(--bg);
+  color:var(--fg);
+  font-family:Arial, Helvetica, sans-serif;
+  overflow:hidden;
+}
+
+/* CONTROL PANEL */
+#panel {
+  position:fixed;
+  top:10px;
+  left:50%;
+  transform:translateX(-50%);
+  background:rgba(0,0,0,.65);
+  backdrop-filter:blur(10px);
+  padding:10px;
+  border-radius:14px;
+  display:flex;
+  flex-wrap:wrap;
+  gap:8px;
+  align-items:center;
+  box-shadow:0 0 20px rgba(0,255,153,.3);
+  z-index:10;
+}
+
+button, select, input[type=range] {
+  background:transparent;
+  border:1px solid var(--accent);
+  color:var(--fg);
+  padding:6px 10px;
+  border-radius:8px;
+  font-size:13px;
+}
+
+button:hover, select:hover {
+  background:var(--accent);
+  color:#000;
+}
+
+label { font-size:12px; }
+
+.theme-neon { --bg:#050505; --fg:#00ff99; --accent:#00ffaa; }
+.theme-ocean{ --bg:#020b14; --fg:#3ad5ff; --accent:#3ad5ff; }
+.theme-fire { --bg:#140000; --fg:#ff6a00; --accent:#ff2a00; }
+.theme-dark { --bg:#111; --fg:#ddd; --accent:#888; }
+
+canvas { display:block; }
