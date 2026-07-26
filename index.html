@@ -2,7 +2,7 @@
 <html lang="en">
 <head>
 <meta charset="UTF-8">
-<title>Mic Audio Visualizer Ultimate (Fixed)</title>
+<title>Interactive Audio Visualizer</title>
 <meta name="viewport" content="width=device-width, initial-scale=1.0">
 <link rel="stylesheet" href="style.css">
 </head>
@@ -10,7 +10,7 @@
 <body class="theme-neon">
 
 <div id="panel">
-  <button id="startBtn">🎤 Start</button>
+  <button id="startBtn">Start</button>
 
   <select id="mode">
     <option value="bars">Bars</option>
@@ -35,14 +35,17 @@
     <option value="rainbow">Rainbow</option>
   </select>
 
-  <label>Sensitivity</label>
+  <label for="sensitivity">Sensitivity</label>
   <input type="range" id="sensitivity" min="0.5" max="3" step="0.1" value="1.5">
+
+  <label for="barWidth">Bar Width</label>
+  <input type="range" id="barWidth" min="0.25" max="1" step="0.05" value="0.9">
 
   <label>
     <input type="checkbox" id="bassOnly"> Bass Only
   </label>
 
-  <button id="fsBtn">⛶ Fullscreen</button>
+  <button id="fsBtn">Fullscreen</button>
 </div>
 
 <canvas id="canvas"></canvas>

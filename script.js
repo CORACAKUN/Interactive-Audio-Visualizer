@@ -14,6 +14,7 @@ const modeSel = document.getElementById("mode");
 const themeSel = document.getElementById("theme");
 const colorSel = document.getElementById("colorMode");
 const sensSlider = document.getElementById("sensitivity");
+const barWidthSlider = document.getElementById("barWidth");
 const bassChk = document.getElementById("bassOnly");
 const fsBtn = document.getElementById("fsBtn");
 
@@ -44,13 +45,21 @@ fsBtn.onclick = () => {
   document.fullscreenElement ? document.exitFullscreen() : canvas.requestFullscreen();
 };
 
-COLOR 
+// COLOR
 function getColor(index, total) {
   if (colorSel.value === "rainbow") {
     const hueVal = (hue + (index / total) * 360) % 360;
     return `hsl(${hueVal},100%,60%)`;
   }
   return getComputedStyle(document.body).getPropertyValue("--accent");
+}
+
+function clearCanvas() {
+  const bg = getComputedStyle(document.body).getPropertyValue("--bg").trim() || "#000";
+  ctx.fillStyle = bg;
+  ctx.globalAlpha = 0.24;
+  ctx.fillRect(0, 0, canvas.width, canvas.height);
+  ctx.globalAlpha = 1;
 }
 
 //  CORE FIX: AUDIO MAPPING
@@ -65,14 +74,20 @@ function getAudioValue(visualIndex, visualCount) {
   return dataArray[Math.min(mapped, bassRange - 1)];
 }
 
+function getAudioValueInRange(visualIndex, visualCount, frequencyRange) {
+  const range = bassChk.checked ? 0.25 : frequencyRange;
+  const usableBins = Math.max(1, Math.floor(bufferLength * range));
+  const mapped = Math.floor((visualIndex / visualCount) * usableBins);
+  return dataArray[Math.min(mapped, usableBins - 1)];
+}
+
 // DRAW LOOP
 function animate() {
   requestAnimationFrame(animate);
   analyser.getByteFrequencyData(dataArray);
   hue = (hue + 1) % 360;
 
-  ctx.fillStyle = "rgba(0,0,0,0.25)";
-  ctx.fillRect(0,0,canvas.width,canvas.height);
+  clearCanvas();
 
   switch (modeSel.value) {
     case "bars": drawBars(); break;
@@ -90,11 +105,14 @@ function animate() {
 
 function drawBars() {
   const bars = 228;
-  const w = canvas.width / bars * 6;
+  const slot = canvas.width / bars;
+  const barWidth = Math.max(1, slot * Number(barWidthSlider.value));
+  const offset = (slot - barWidth) / 2;
+
   for (let i = 0; i < bars; i++) {
-    const v = getAudioValue(i, bars) * sensSlider.value;
+    const v = getAudioValueInRange(i, bars, 0.17) * sensSlider.value;
     ctx.fillStyle = getColor(i, bars);
-    ctx.fillRect(i * w, canvas.height - v, w - 1, v);
+    ctx.fillRect(i * slot + offset, canvas.height - v, barWidth, v);
   }
 }
 
@@ -132,13 +150,16 @@ function drawCircle() {
 }
 
 function drawMirror() {
-  const bars = 1524;
-  const w = canvas.width / bars * 10;
+  const bars = 360;
+  const slot = canvas.width / bars;
+  const barWidth = Math.max(1, slot * Number(barWidthSlider.value));
+  const offset = (slot - barWidth) / 2;
   const mid = canvas.height / 2;
+
   for (let i = 0; i < bars; i++) {
-    const v = getAudioValue(i, bars) * sensSlider.value;
+    const v = getAudioValueInRange(i, bars, 0.12) * sensSlider.value;
     ctx.fillStyle = getColor(i, bars);
-    ctx.fillRect(i * w, mid - v / 2, w - 1, v);
+    ctx.fillRect(i * slot + offset, mid - v / 2, barWidth, v);
   }
 }
 
@@ -170,13 +191,22 @@ function drawSpiral() {
 function drawDots() {
   const cols = 40, rows = 22;
   const cw = canvas.width / cols, ch = canvas.height / rows;
+  const total = cols * rows;
+  const centerX = (cols - 1) / 2;
+  const centerY = (rows - 1) / 2;
+  const maxDist = Math.hypot(centerX, centerY);
   let idx = 0;
+
   for (let y = 0; y < rows; y++) {
     for (let x = 0; x < cols; x++) {
-      const v = getAudioValue(idx, cols * rows) * sensSlider.value;
-      ctx.fillStyle = getColor(idx, cols * rows);
+      const dist = Math.hypot(x - centerX, y - centerY);
+      const audioIndex = Math.floor((dist / maxDist) * (total - 1));
+      const v = getAudioValue(audioIndex, total) * sensSlider.value;
+      const radius = Math.min(Math.max(1.5, v / 28), Math.min(cw, ch) * 0.32);
+
+      ctx.fillStyle = getColor(idx, total);
       ctx.beginPath();
-      ctx.arc(x * cw + cw / 2, y * ch + ch / 2, Math.max(2, v / 12), 0, Math.PI * 2);
+      ctx.arc(x * cw + cw / 2, y * ch + ch / 2, radius, 0, Math.PI * 2);
       ctx.fill();
       idx++;
     }
@@ -187,15 +217,23 @@ function drawRing() {
   const bins = 256;
   const cx = canvas.width / 2, cy = canvas.height / 2;
   const baseRadius = Math.min(canvas.width, canvas.height) * 0.2;
-  
-  ctx.strokeStyle = getColor(0, 1);
+  const ringEnergy = dataArray.reduce((sum, value) => sum + value, 0) / bufferLength;
+  const lowBins = bassChk.checked ? Math.floor(bufferLength * 0.25) : bufferLength;
+
   for (let i = 0; i < bins; i++) {
-    const v = getAudioValue(i, bins) * sensSlider.value * 0.6;
-    const a = (i / bins) * Math.PI * 2;
-    ctx.lineWidth = 2;
+    const phase = (i / bins) * Math.PI * 2;
+    const bandIndex = Math.floor((Math.sin(phase * 3 + hue * 0.035) * 0.5 + 0.5) * (lowBins - 1));
+    const bandEnergy = dataArray[Math.max(0, Math.min(bandIndex, lowBins - 1))];
+    const v = (ringEnergy * 0.45 + bandEnergy * 0.55) * sensSlider.value * 0.34;
+    const a = (i / bins) * Math.PI * 2 - Math.PI / 2;
+    const innerRadius = Math.max(10, baseRadius - v * 0.45);
+    const outerRadius = baseRadius + v;
+
+    ctx.strokeStyle = getColor(i, bins);
+    ctx.lineWidth = 1.6;
     ctx.beginPath();
-    ctx.moveTo(cx + Math.cos(a) * baseRadius, cy + Math.sin(a) * baseRadius);
-    ctx.lineTo(cx + Math.cos(a) * (baseRadius + v), cy + Math.sin(a) * (baseRadius + v));
+    ctx.moveTo(cx + Math.cos(a) * innerRadius, cy + Math.sin(a) * innerRadius);
+    ctx.lineTo(cx + Math.cos(a) * outerRadius, cy + Math.sin(a) * outerRadius);
     ctx.stroke();
   }
 }
